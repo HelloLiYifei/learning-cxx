@@ -10,6 +10,10 @@ struct Tensor4D {
     Tensor4D(unsigned int const shape_[4], T const *data_) {
         unsigned int size = 1;
         // TODO: 填入正确的 shape 并计算 size
+        std::memcpy(shape, shape_, 4 * sizeof(unsigned int));
+        for (int i = 0; i < 4; ++i) {
+            size *= shape[i];
+        }
         data = new T[size];
         std::memcpy(data, data_, size * sizeof(T));
     }
@@ -28,6 +32,34 @@ struct Tensor4D {
     // 则 `this` 与 `others` 相加时，3 个形状为 `[1, 2, 1, 4]` 的子张量各自与 `others` 对应项相加。
     Tensor4D &operator+=(Tensor4D const &others) {
         // TODO: 实现单向广播的加法
+        if (shape[0] != others.shape[0] || shape[1] != others.shape[1] ||
+            shape[2] != others.shape[2] || shape[3] != others.shape[3]) {
+            // 形状不匹配，检查是否可以广播
+            for (int i = 0; i < 4; ++i) {
+                if (shape[i] != others.shape[i] && others.shape[i] != 1) {
+                    throw std::invalid_argument("Incompatible shapes for broadcasting");
+                }
+            }
+        }
+        unsigned int strides[4] = {1, shape[3], shape[2] * shape[3], shape[1] * shape[2] * shape[3]};
+        unsigned int other_strides[4] = {1, others.shape[3], others.shape[2] * others.shape[3],
+                                         others.shape[1] * others.shape[2] * others.shape[3]};
+
+        for (unsigned int i = 0; i < shape[0]; ++i) {
+            for (unsigned int j = 0; j < shape[1]; ++j) {
+                for (unsigned int k = 0; k < shape[2]; ++k) {
+                    for (unsigned int l = 0; l < shape[3]; ++l) {
+                        unsigned int index = i * strides[3] + j * strides[2] + k * strides[1] + l * strides[0];
+                        unsigned int other_index = (others.shape[0] == 1 ? 0 : i) * other_strides[3] +
+                                                   (others.shape[1] == 1 ? 0 : j) * other_strides[2] +
+                                                   (others.shape[2] == 1 ? 0 : k) * other_strides[1] +
+                                                   (others.shape[3] == 1 ? 0 : l) * other_strides[0];
+                        data[index] += others.data[other_index];
+                    }
+                }
+            }
+        }
+
         return *this;
     }
 };
